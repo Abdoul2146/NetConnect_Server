@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey, Text, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from .database import Base
@@ -26,6 +26,7 @@ class Message(Base):
     receiver_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # null means broadcast
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)  # 0 for unread, 1 for read
 
     file_path = Column(String, nullable=True)  # path or URL to file attachment
     file_type = Column(String, nullable=True)  # mime-type like 'image/png', 'application/pdf'
@@ -59,6 +60,20 @@ class GroupMessage(Base):
     file_type = Column(String, nullable=True)  # mime-type like 'image/png', 'application/pdf'
     timestamp = Column(DateTime, default=datetime.utcnow)
     is_system = Column(Boolean, default=False)  # 0 for user message, 1 for system message
+    is_read = Column(Boolean, default=False)  # 0 for unread, 1 for read
 
     group = relationship("Group", backref="messages")
     sender = relationship("User")
+
+class GroupMessageRead(Base):
+    __tablename__ = 'group_message_reads'
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_message_id = Column(Integer, ForeignKey('group_messages.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
+    is_read = Column(Boolean, default=False)  # 0 for unread, 1 for read
+
+    group_message = relationship("GroupMessage", backref="reads")
+    user = relationship("User", backref="group_message_reads")
+
+    __table_args__ = (UniqueConstraint('group_message_id', 'user_id', name='unique_group_message_read'),)  # Ensure one read per user per message
