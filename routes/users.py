@@ -154,4 +154,3 @@ def update_password(
     db.commit()
 
     return {"message": "Password updated successfully"}
-
