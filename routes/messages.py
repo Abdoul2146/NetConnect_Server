@@ -64,7 +64,7 @@ async def send_message(
         sender_id=current_user.id,
         receiver_id=receiver.id,
         content=content,
-        timestamp=datetime.utcnow(WAT)
+        timestamp=datetime.now(WAT)
     )
     db.add(message)
     db.commit()

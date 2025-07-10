@@ -5,8 +5,12 @@ from app.routes import users, messages, groups, files, websocket  # ✅ import a
 from fastapi.middleware.cors import CORSMiddleware
 from app.authj import jwt_handler  # Import JWT handler for authentication
 # Initialize FastAPI app
+import uvicorn
+import socket
 
 app = FastAPI()
+
+
 
 # origins = [
 #     "http://localhost:3000",  # React app running on localhost
@@ -36,6 +40,25 @@ app.include_router(websocket.router)
 # Mount static file path for file access
 app.mount("/uploaded_files", StaticFiles(directory="uploaded_files"), name="uploaded_files")
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+@app.on_event("startup")
+async def display_ip():
+    ip = get_local_ip()
+    print(f"Server is running on IP: {ip}")
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to NetChat API"}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

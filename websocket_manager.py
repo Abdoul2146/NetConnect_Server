@@ -1,6 +1,7 @@
 from fastapi import WebSocket
 from typing import Dict
 import json
+import socket
 
 
 class ConnectionManager:

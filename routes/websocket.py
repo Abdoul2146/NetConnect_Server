@@ -50,6 +50,7 @@ async def websocket_endpoint(
         try:
             while True:
                 data = await websocket.receive_json()
+                print(f"Received message from {username}: {data}")
 
                 # Validate message content
                 content = data.get("content")
