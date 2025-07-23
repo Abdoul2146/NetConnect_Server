@@ -36,5 +36,13 @@ class ConnectionManager:
                 except Exception as e:
                     print(f"Error broadcasting to {user}: {e}")
 
+    async def broadcast_status(self, username: str, status: str):
+        status_message = {
+            "type": "status",
+            "username": username,
+            "status": status
+        }
+        await self.broadcast(status_message, exclude=username)
+
 
 manager = ConnectionManager()

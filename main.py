@@ -4,10 +4,10 @@ from app.database import Base, engine
 from app.routes import users, messages, groups, files, websocket  # ✅ import all route modules here
 from fastapi.middleware.cors import CORSMiddleware
 from app.authj import jwt_handler  # Import JWT handler for authentication
-# Initialize FastAPI app
 import uvicorn
 import socket
 
+# Initialize FastAPI app
 app = FastAPI()
 
 

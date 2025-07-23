@@ -14,6 +14,8 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     avatar_url = Column(String, nullable=True)
+    is_online = Column(Boolean, default=False)
+
     messages_sent = relationship("Message", back_populates="sender", foreign_keys='Message.sender_id')
     messages_received = relationship("Message", back_populates="receiver", foreign_keys='Message.receiver_id')
 
@@ -30,9 +32,15 @@ class Message(Base):
 
     file_path = Column(String, nullable=True)  # path or URL to file attachment
     file_type = Column(String, nullable=True)  # mime-type like 'image/png', 'application/pdf'
+    # forwarded_from_id = Column(Integer, ForeignKey('messages.id'), nullable=True)  # Add this line
+    forwarded_from_type = Column(String, nullable=True)
+    forwarded_from_content = Column(Text, nullable=True)
+    forwarded_from_sender = Column(String, nullable=True)
+    forwarded_from_timestamp = Column(DateTime, nullable=True)
 
     sender = relationship("User", back_populates="messages_sent", foreign_keys=[sender_id])
     receiver = relationship("User", back_populates="messages_received", foreign_keys=[receiver_id])
+    # forwarded_from = relationship("Message", remote_side=[id], uselist=False)  # Optional: for ORM access
 
 user_group = Table(
     'user_group',
@@ -61,9 +69,15 @@ class GroupMessage(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     is_system = Column(Boolean, default=False)  # 0 for user message, 1 for system message
     is_read = Column(Boolean, default=False)  # 0 for unread, 1 for read
+    # forwarded_from_id = Column(Integer, ForeignKey('group_messages.id'), nullable=True)  # Add this line
+    forwarded_from_type = Column(String, nullable=True)
+    forwarded_from_content = Column(Text, nullable=True)
+    forwarded_from_sender = Column(String, nullable=True)
+    forwarded_from_timestamp = Column(DateTime, nullable=True)
 
     group = relationship("Group", backref="messages")
     sender = relationship("User")
+    # forwarded_from = relationship("GroupMessage", remote_side=[id], uselist=False)  # Optional: for ORM access
 
 class GroupMessageRead(Base):
     __tablename__ = 'group_message_reads'

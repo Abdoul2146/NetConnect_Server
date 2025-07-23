@@ -36,21 +36,31 @@ async def websocket_endpoint(
             return
 
         await manager.connect(username, websocket)
-
-        # Notify others of connection
-        status_message = {
-            "type": "status",
-            "content": f"{username} has joined",
-            "username": username,
-            "status": "online"
-        }
-        await manager.broadcast(status_message, exclude=username)
-        await manager.send_personal_message(status_message, username)
+        # await manager.broadcast_status(username, "online")
 
         try:
             while True:
                 data = await websocket.receive_json()
-                print(f"Received message from {username}: {data}")
+                event_type = data.get("type")
+
+                # Handle message status events
+                if event_type == "message_status":
+                    message_id = data.get("message_id")
+                    status = data.get("status")  # "delivered" or "seen"
+                    # Update DB if needed
+                    msg = db.query(Message).filter(Message.id == message_id).first()
+                    if msg and status == "seen":
+                        msg.is_read = True
+                        db.commit()
+                    # Notify sender
+                    sender_username = msg.sender.username if msg and msg.sender else None
+                    if sender_username:
+                        await manager.send_personal_message({
+                            "type": "message_status",
+                            "message_id": message_id,
+                            "status": status
+                        }, sender_username)
+                    continue
 
                 # Validate message content
                 content = data.get("content")
@@ -137,13 +147,12 @@ async def websocket_endpoint(
             raise
     except WebSocketDisconnect:
         manager.disconnect(username)
-        disconnect_message = {
-            "type": "status",
-            "content": f"{username} has left",
-            "username": username,
-            "status": "offline"
-        }
-        await manager.broadcast(disconnect_message, exclude=username)
+        # await manager.broadcast_status(username, "offline")
+        # Update DB status
+        user = db.query(User).filter(User.username == username).first()
+        if user:
+            user.is_online = False
+            db.commit()
     except Exception as e:
         print(f"Unexpected error in websocket connection: {str(e)}")
         manager.disconnect(username)
