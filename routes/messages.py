@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User, Message, Group, GroupMessage, GroupMessageRead
@@ -558,6 +558,63 @@ async def send_group_file_message(
         "file_type": file.content_type,        
         "timestamp": group_msg.timestamp.astimezone(WAT).isoformat()
     }
+
+@router.delete("/messages/{message_id}/delete", status_code=200)
+def delete_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    message = db.query(Message).filter(Message.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    # Only sender or receiver can delete
+    if message.sender_id != current_user.id and message.receiver_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    # Delete attached file if exists
+    if message.file_path:
+        try:
+            os.remove(message.file_path)
+        except Exception:
+            pass
+    db.delete(message)
+    db.commit()
+    return {"message": "Message deleted successfully"}
+
+@router.delete("/group_messages/{group_message_id}/delete", status_code=200)
+def delete_group_message(
+    group_message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    group_msg = db.query(GroupMessage).filter(GroupMessage.id == group_message_id).first()
+    if not group_msg:
+        raise HTTPException(status_code=404, detail="Group message not found")
+    if group_msg.sender_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if group_msg.file_path:
+        try:
+            os.remove(group_msg.file_path)
+        except Exception:
+            pass
+    db.delete(group_msg)
+    db.commit()
+    return {"message": "Group message deleted successfully"}
+
+@router.delete("/uploaded_files/{filename}/delete", status_code=200)
+def delete_uploaded_file(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    file_path = os.path.join("uploaded_files", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        os.remove(file_path)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not delete file")
+    return {"message": "File deleted successfully"}
 
 @router.get("/uploaded_files/{filename}")
 async def download_file(filename: str):

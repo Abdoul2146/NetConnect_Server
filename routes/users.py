@@ -8,6 +8,7 @@ from app.authj.jwt_handler import create_access_token
 from app.authj.dependencies import get_current_user
 import asyncio
 from app.websocket_manager import manager  # Import WebSocket manager
+from datetime import datetime
 
 router = APIRouter()
 
@@ -58,13 +59,19 @@ async def login(
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
+    # Update is_online and last_active_at on login via REST API
     user.is_online = True
+    user.last_active_at = datetime.utcnow() # Add/Update this line
     db.commit()
 
-    asyncio.create_task(manager.broadcast_status(username, "online"))  # Broadcast online status via WebSocket manager
+    # The broadcast_status via manager here is good for immediate notification
+    # if the client connects to WebSocket *after* logging in via REST.
+    # The WS connect method will also handle this, so it might be redundant
+    # if WS connect happens immediately after login. Keep it for safety.
+    asyncio.create_task(manager.broadcast_status(username, "online"))
 
-    token = create_access_token(data={"sub": user.username})    
+    token = create_access_token(data={"sub": user.username})
 
     return {"message": "Login successful",
             "username": user.username,
@@ -72,6 +79,24 @@ async def login(
             "token_type": "Bearer"
     }
 
+@router.post("/logout")
+async def logout(
+    username: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update is_online and last_active_at on logout via REST API
+    user.is_online = False
+    user.last_active_at = datetime.utcnow() # Add/Update this line
+    db.commit()
+
+    # Broadcast offline status
+    asyncio.create_task(manager.broadcast_status(username, "offline"))
+
+    return {"message": "Logout successful", "username": username}
 
 @router.get("/profile/{username}")
 def get_profile(username: str, db: Session = Depends(get_db)):
@@ -164,18 +189,4 @@ def update_password(
 
     return {"message": "Password updated successfully"}
 
-@router.post("/logout")
-async def logout(
-    username: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    user.is_online = False
-    db.commit()
 
-    asyncio.create_task(manager.broadcast_status(username, "offline"))  # Broadcast offline status via WebSocket manager
-
-    # Optionally: broadcast status change via WebSocket manager here
-    return {"message": "Logout successful", "username": username}

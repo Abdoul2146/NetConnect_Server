@@ -1,3 +1,7 @@
+# In C:\Users\abdul\Desktop\fastapi\fastapi\netcom\app\alembic\env.py
+
+import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -5,20 +9,31 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# Add your project root to sys.path FIRST
+# This allows 'app' and its modules (like app.database, app.models) to be imported
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+# Now, import from your application's database module
+from app.database import SQLALCHEMY_DATABASE_URL # <--- Import the URL directly
+from app.models import Base as AppModelsBase # Import Base from your models.py
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
+# Interpret the config file for Python's logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+# Set the SQLAlchemy URL from your database.py, overriding alembic.ini's setting
+# This ensures Alembic uses the exact same DB path as your FastAPI app.
+config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL) # <--- CRUCIAL CHANGE
+
+# Add your model's metadata here for autogenerate support
+# (Ensure AppModelsBase is the Base class your models inherit from)
+target_metadata = AppModelsBase.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

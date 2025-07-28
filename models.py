@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey, Text, Boolean, UniqueConstraint
+from sqlalchemy import Table, Column, Integer, String, DateTime, ForeignKey, Text, Boolean, UniqueConstraint, func
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from .database import Base
@@ -15,6 +15,8 @@ class User(Base):
     hashed_password = Column(String)
     avatar_url = Column(String, nullable=True)
     is_online = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)  # Add this line for admin check
+    last_active_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     messages_sent = relationship("Message", back_populates="sender", foreign_keys='Message.sender_id')
     messages_received = relationship("Message", back_populates="receiver", foreign_keys='Message.receiver_id')
@@ -91,3 +93,37 @@ class GroupMessageRead(Base):
     user = relationship("User", backref="group_message_reads")
 
     __table_args__ = (UniqueConstraint('group_message_id', 'user_id', name='unique_group_message_read'),)  # Ensure one read per user per message
+
+
+notice_board_follower = Table(
+    "notice_board_follower",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id")),
+    Column("board_id", Integer, ForeignKey("notice_boards.id")),
+    UniqueConstraint("user_id", "board_id", name="unique_board_follower")
+)
+
+class NoticeBoard(Base):
+    __tablename__ = "notice_boards"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)  # e.g., "Computer Eng.", "CSC Student Union"
+    created_by_id = Column(Integer, ForeignKey("users.id"))
+    created_by = relationship("User", backref="created_boards")
+    followers = relationship(
+        "User",
+        secondary=notice_board_follower,
+        backref=backref("followed_boards")
+    )
+
+class NoticePost(Base):
+    __tablename__ = "notice_posts"
+    id = Column(Integer, primary_key=True, index=True)
+    board_id = Column(Integer, ForeignKey("notice_boards.id"))
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    attachment_path = Column(String, nullable=True)
+    posted_by_id = Column(Integer, ForeignKey("users.id"))
+
+    board = relationship("NoticeBoard", backref="posts")
+    posted_by = relationship("User")
