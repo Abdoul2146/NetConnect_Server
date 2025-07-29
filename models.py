@@ -17,6 +17,9 @@ class User(Base):
     is_online = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)  # Add this line for admin check
     last_active_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    security_answer1 = Column(String, nullable=True)
+    security_answer2 = Column(String, nullable=True)
+    security_answer3 = Column(String, nullable=True)
 
     messages_sent = relationship("Message", back_populates="sender", foreign_keys='Message.sender_id')
     messages_received = relationship("Message", back_populates="receiver", foreign_keys='Message.receiver_id')

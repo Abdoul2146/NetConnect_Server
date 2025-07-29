@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, Form
+from fastapi import APIRouter, HTTPException, Depends, Form, Body
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User
 from app.auth import hash_password, verify_password
-from app.schemas import UserOut
+from app.schemas import UserOut, UserProfile, PasswordResetRequest
 from app.authj.jwt_handler import create_access_token
 from app.authj.dependencies import get_current_user
 import asyncio
@@ -28,6 +28,9 @@ def signup(
     contact: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
+    security_answer1: str = Form(...),
+    security_answer2: str = Form(...),
+    security_answer3: str = Form(...),
     db: Session = Depends(get_db)
 ):
     # Check if username/email already exists
@@ -35,19 +38,20 @@ def signup(
         raise HTTPException(status_code=400, detail="Username or email already registered")
 
     hashed_pw = hash_password(password)
-
     user = User(
         name=name,
         job_title=job_title,
         email=email,
         contact=contact,
         username=username,
-        hashed_password=hashed_pw
+        hashed_password=hashed_pw,
+        security_answer1=hash_password(security_answer1),  # hash here
+        security_answer2=hash_password(security_answer2),  # hash here
+        security_answer3=hash_password(security_answer3),  # hash here
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-
     return {"message": "User registered successfully", "username": user.username}
 
 @router.post("/login")
@@ -190,3 +194,38 @@ def update_password(
     return {"message": "Password updated successfully"}
 
 
+@router.post("/verify_security_answers")
+def verify_security_answers(
+    data: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    username = data.get("username")
+    answers = data.get("answers", [])
+    if not username or len(answers) != 3:
+        raise HTTPException(status_code=400, detail="Invalid data")
+
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Assume user.security_answers is a list of hashed answers in order
+    # You should hash/check answers as appropriate for your app
+    for i, ans in enumerate(answers):
+        if not verify_password(ans, getattr(user, f"security_answer{i+1}")):
+            raise HTTPException(status_code=403, detail="Incorrect answers")
+
+    return {"message": "Security answers verified"}
+
+@router.put("/reset-password/{username}")
+def reset_password(
+    username: str,
+    req: PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.hashed_password = hash_password(req.new_password)
+    db.commit()
+    return {"message": "Password reset successfully"}

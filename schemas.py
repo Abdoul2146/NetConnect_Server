@@ -18,3 +18,7 @@ class UserProfile(BaseModel):
 
     class Config:
         orm_mode = True
+
+class PasswordResetRequest(BaseModel):  # <-- Insert here
+    new_password: str
+
