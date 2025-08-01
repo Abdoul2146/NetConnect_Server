@@ -6,6 +6,8 @@ from app.models import User, NoticeBoard, NoticePost # Ensure all models are imp
 from app.authj.dependencies import get_current_user
 from datetime import datetime, timezone # Import timezone for explicit UTC if desired
 import os
+import uuid
+
 
 # Define the directory for uploaded files if it's not already defined globally
 # This should match where your FastAPI static files are served from.
@@ -117,6 +119,7 @@ def unfollow_board(
         db.refresh(board) # Refresh board to ensure state is updated
     return {"message": f"Unfollowed {board.name}"}
 
+
 @router.post("/notice_boards/{board_id}/posts")
 async def create_notice_post(
     board_id: int,
@@ -130,19 +133,20 @@ async def create_notice_post(
     if not board:
         raise HTTPException(status_code=404, detail="Board not found")
     
-    # The current_user.id is already the admin here, no need for board.created_by_id
     if board.created_by_id != current_user.id: 
         raise HTTPException(status_code=403, detail="Only the board creator can post")
     
     attachment_path = None
     if attachment:
-        # Create the full path to save the file
-        file_location = os.path.join(UPLOAD_DIRECTORY, attachment.filename)
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(file_location), exist_ok=True)
-        with open(file_location, "wb") as buffer:
-            buffer.write(await attachment.read())
-        attachment_path = f"{attachment.filename}" # Store filename or relative path from upload dir
+        # Use original filename (no unique prefix)
+        safe_filename = os.path.basename(attachment.filename)
+        file_location = os.path.join(UPLOAD_DIRECTORY, safe_filename)
+        try:
+            with open(file_location, "wb") as buffer:
+                buffer.write(await attachment.read())
+            attachment_path = file_location  # Store full relative path
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save attachment: {str(e)}")
 
     post = NoticePost(
         board_id=board_id,
@@ -150,14 +154,12 @@ async def create_notice_post(
         description=description,
         attachment_path=attachment_path,
         posted_by_id=current_user.id,
-        timestamp=datetime.now(timezone.utc) # Use UTC for consistency
+        timestamp=datetime.now(timezone.utc)
     )
     db.add(post)
     db.commit()
     db.refresh(post)
 
-    # Real-time notification to followers
-    # Ensure 'followers' relationship is loaded or handle N+1 if many followers
     for follower in board.followers:
         await manager.send_personal_message({
             "type": "notice_post",
@@ -166,11 +168,11 @@ async def create_notice_post(
             "description": post.description,
             "timestamp": post.timestamp.isoformat(),
             "attachment_path": post.attachment_path,
-            "posted_by": current_user.username # Send username of poster
+            "posted_by": current_user.username
         }, follower.username)
 
     return {"message": "Post created", "id": post.id, "title": post.title}
-
+    
 @router.get("/notice_boards/{board_id}/posts")
 def get_board_posts(
     board_id: int,
